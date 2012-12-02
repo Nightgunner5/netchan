@@ -1,0 +1,56 @@
+PACKAGE
+
+package netchan
+    import "github.com/Nightgunner5/netchan"
+
+
+FUNCTIONS
+
+func Listen(l net.Listener, f func(*Chan), t reflect.Type, buffer int) error
+    Listens for connections. For each connection, f will be called in a new
+    goroutine with a new networked channel (of type chan t) with the given
+    buffer size. A buffer size <= 0 is treated as a buffer size of 1.
+
+    If a fatal network error is encountered, it will be returned and no new
+    connections will be handled. Non-fatal network errors are ignored.
+
+
+TYPES
+
+type Chan struct {
+    // contains filtered or unexported fields
+}
+    Chan represents a type-safe, bidirectional networked chan T, where T can
+    be any type.
+
+    The channel should always be considered buffered, as the network I/O
+    works like a buffer to avoid hanging on slow connections.
+
+func New(rw io.ReadWriteCloser, t reflect.Type, buffer int) *Chan
+    Returns a new channel (of type chan t). No other reads from or writes to
+    the io.ReadWriteCloser should occur. A buffer size <= 0 is treated as a
+    buffer size of 1.
+
+func (c *Chan) ChanRecv() interface{}
+    Returns a <-chan T which can be used in the same manner as Chan.Recv().
+
+func (c *Chan) ChanSend() interface{}
+    Returns a chan<- T which can be used in the same manner as Chan.Send().
+
+func (c *Chan) Close()
+    Synonym for close(ChanSend().(chan<- T)).
+
+func (c *Chan) Errors() <-chan error
+    Returns a channel where I/O errors will be sent. This channel is
+    unbuffered and the read or write goroutine will wait to send to this
+    channel.
+
+func (c *Chan) Recv() (v interface{}, ok bool)
+    Read a value from ChanRecv. In the case of a closed connection, Recv
+    will return the zero value for T for v and false for ok.
+
+func (c *Chan) Send(v interface{})
+    Send a value to ChanSend. If the connection has been closed, this method
+    will panic as described in the Go spec for channels.
+
+
