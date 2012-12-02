@@ -44,3 +44,29 @@ func TestChanSend(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestRange(t *testing.T) {
+	t.Parallel()
+
+	l, r := net.Pipe()
+	left := newChan(reflect.TypeOf(int(0)), 100, l)
+	right := newChan(reflect.TypeOf(int(0)), 100, r)
+
+	leftch := left.ChanSend().(chan<- int)
+	for i := 0; i < 100; i++ {
+		leftch <- i
+	}
+	close(leftch)
+
+	rightch := right.ChanRecv().(<-chan int)
+	n := 0
+	for i := range rightch {
+		if n != i {
+			t.Errorf("Expected %d but got %d", n, i)
+		}
+		n++
+	}
+	if n != 100 {
+		t.Errorf("Expected %d elements, but got %d", 100, n)
+	}
+}
