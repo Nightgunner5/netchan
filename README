@@ -40,10 +40,9 @@ func (c *Chan) ChanSend() interface{}
 func (c *Chan) Close()
     Synonym for close(ChanSend().(chan<- T)).
 
-func (c *Chan) Errors() <-chan error
-    Returns a channel where I/O errors will be sent. This channel is
-    unbuffered and the read or write goroutine will wait to send to this
-    channel.
+func (c *Chan) Error() error
+    Returns any error encountered during sending or recieving. Returns nil
+    if no errors have occured.
 
 func (c *Chan) Recv() (v interface{}, ok bool)
     Read a value from ChanRecv. In the case of a closed connection, Recv

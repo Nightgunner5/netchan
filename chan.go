@@ -2,8 +2,11 @@ package netchan
 
 import (
 	"encoding/gob"
+	"errors"
 	"io"
 	"reflect"
+	"strings"
+	"sync"
 )
 
 // Chan represents a type-safe, bidirectional networked chan T, where T can be
@@ -12,8 +15,10 @@ import (
 // The channel should always be considered buffered, as the network I/O works
 // like a buffer to avoid hanging on slow connections.
 type Chan struct {
-	in, out reflect.Value
-	errors  <-chan error
+	in, out   reflect.Value
+	senderror error
+	recverror error
+	errormtx  sync.Mutex
 }
 
 func newChan(t reflect.Type, buffer int, rw io.ReadWriteCloser) (c *Chan) {
@@ -24,9 +29,6 @@ func newChan(t reflect.Type, buffer int, rw io.ReadWriteCloser) (c *Chan) {
 	c.in = recv.Convert(reflect.ChanOf(reflect.RecvDir, t))
 	c.out = send.Convert(reflect.ChanOf(reflect.SendDir, t))
 
-	errors := make(chan error)
-	c.errors = errors
-
 	// send
 	go func() {
 		encoder := gob.NewEncoder(rw)
@@ -34,10 +36,12 @@ func newChan(t reflect.Type, buffer int, rw io.ReadWriteCloser) (c *Chan) {
 		for {
 			v, ok := send.Recv()
 			if err := encoder.Encode(ok); err != nil {
-				errors <- err
-
-				// TODO: which errors are fatal?
-				continue
+				if ok {
+					c.errormtx.Lock()
+					c.senderror = err
+					c.errormtx.Unlock()
+				}
+				return
 			}
 
 			if !ok {
@@ -46,16 +50,19 @@ func newChan(t reflect.Type, buffer int, rw io.ReadWriteCloser) (c *Chan) {
 			}
 
 			if err := encoder.EncodeValue(v); err != nil {
-				errors <- err
-
-				// TODO: which errors are fatal?
-				continue
+				c.errormtx.Lock()
+				c.senderror = err
+				c.errormtx.Unlock()
+				return
 			}
 		}
 	}()
 
 	// recv
 	go func() {
+		defer rw.Close()
+		defer recv.Close()
+
 		v := reflect.New(t).Elem()
 		decoder := gob.NewDecoder(rw)
 
@@ -64,30 +71,24 @@ func newChan(t reflect.Type, buffer int, rw io.ReadWriteCloser) (c *Chan) {
 			if err := decoder.Decode(&ok); err != nil {
 				// We close the channel, other side recieves !ok, they close the connection, then we get EOF.
 				if err == io.EOF {
-					rw.Close()
-					recv.Close()
-					close(errors)
 					return
 				}
 
-				errors <- err
-
-				// TODO: which errors are fatal?
-				continue
+				c.errormtx.Lock()
+				c.recverror = err
+				c.errormtx.Unlock()
+				return
 			}
 
 			if !ok {
-				rw.Close()
-				recv.Close()
-				close(errors)
 				return
 			}
 
 			if err := decoder.DecodeValue(v); err != nil {
-				errors <- err
-
-				// TODO: which errors are fatal?
-				continue
+				c.errormtx.Lock()
+				c.recverror = err
+				c.errormtx.Unlock()
+				return
 			}
 
 			recv.Send(v)
@@ -126,8 +127,26 @@ func (c *Chan) ChanRecv() interface{} {
 	return c.in.Interface()
 }
 
-// Returns a channel where I/O errors will be sent. This channel is unbuffered
-// and the read or write goroutine will wait to send to this channel.
-func (c *Chan) Errors() <-chan error {
-	return c.errors
+// Returns any error encountered during sending or recieving. Returns nil if
+// no errors have occured.
+func (c *Chan) Error() error {
+	c.errormtx.Lock()
+	defer c.errormtx.Unlock()
+
+	return combineErrors(c.senderror, c.recverror)
+}
+
+func combineErrors(errs ...error) error {
+	var nonNil []string
+	for _, err := range errs {
+		if err != nil {
+			nonNil = append(nonNil, err.Error())
+		}
+	}
+
+	if len(nonNil) == 0 {
+		return nil
+	}
+
+	return errors.New(strings.Join(nonNil, "\n"))
 }

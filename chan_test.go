@@ -35,13 +35,13 @@ func TestChanSend(t *testing.T) {
 	if ok {
 		t.Error("Recv returned success after channel was closed.")
 	}
+	right.Close()
 
-	for err := range left.Errors() {
-		t.Error(err)
+	if err := left.Error(); err != nil {
+		t.Error("Left: ", err)
 	}
-
-	for err := range right.Errors() {
-		t.Error(err)
+	if err := right.Error(); err != nil {
+		t.Error("Right: ", err)
 	}
 }
 
@@ -68,5 +68,34 @@ func TestRange(t *testing.T) {
 	}
 	if n != 100 {
 		t.Errorf("Expected %d elements, but got %d", 100, n)
+	}
+
+	right.Close()
+
+	if err := left.Error(); err != nil {
+		t.Error("Left: ", err)
+	}
+	if err := right.Error(); err != nil {
+		t.Error("Right: ", err)
+	}
+}
+
+func TestUnexpectedClose(t *testing.T) {
+	t.Parallel()
+
+	l, r := net.Pipe()
+	left := newChan(reflect.TypeOf(""), 1, l)
+	right := newChan(reflect.TypeOf(""), 1, r)
+
+	left.Send("success")
+	r.Close()
+	left.Send("failure")
+	left.Close()
+
+	if err := left.Error(); err == nil {
+		t.Error("Left had no error, but an error was expected.")
+	}
+	if err := right.Error(); err == nil {
+		t.Error("Right had no error, but an error was expected.")
 	}
 }
