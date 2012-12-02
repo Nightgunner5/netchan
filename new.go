@@ -13,5 +13,5 @@ func New(rw io.ReadWriteCloser, t reflect.Type, buffer int) *Chan {
 	if buffer < 0 {
 		buffer = 0
 	}
-	return newChan(rw, t, buffer)
+	return newChan(t, buffer, rw)
 }
