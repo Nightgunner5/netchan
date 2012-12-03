@@ -130,6 +130,8 @@ func main() {
 					backspace <- true
 				case termbox.KeyEnter:
 					enter <- true
+				case termbox.KeySpace:
+					typed <- ' '
 				case termbox.KeyCtrlC:
 					send <- &packet.Quit{}
 					<-quit
