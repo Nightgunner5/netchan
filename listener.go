@@ -11,7 +11,7 @@ import (
 //
 // If a fatal network error is encountered, it will be returned and no new
 // connections will be handled. Non-fatal network errors are ignored.
-func Listen(l net.Listener, f func(*Chan), t reflect.Type, buffer int) error {
+func Listen(l net.Listener, f func(net.Addr, *Chan), t reflect.Type, buffer int) error {
 	buffer--
 	if buffer < 0 {
 		buffer = 0
@@ -24,7 +24,7 @@ func Listen(l net.Listener, f func(*Chan), t reflect.Type, buffer int) error {
 				return err
 			}
 		}
-		go f(newChan(t, buffer, conn))
+		go f(conn.RemoteAddr(), newChan(t, buffer, conn))
 	}
 	return nil
 }

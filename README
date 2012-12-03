@@ -6,7 +6,7 @@ package netchan
 
 FUNCTIONS
 
-func Listen(l net.Listener, f func(*Chan), t reflect.Type, buffer int) error
+func Listen(l net.Listener, f func(net.Addr, *Chan), t reflect.Type, buffer int) error
     Listens for connections. For each connection, f will be called in a new
     goroutine with a new networked channel (of type chan t) with the given
     buffer size. A buffer size <= 0 is treated as a buffer size of 1.

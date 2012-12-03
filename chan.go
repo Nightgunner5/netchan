@@ -63,7 +63,6 @@ func newChan(t reflect.Type, buffer int, rw io.ReadWriteCloser) (c *Chan) {
 		defer rw.Close()
 		defer recv.Close()
 
-		v := reflect.New(t).Elem()
 		decoder := gob.NewDecoder(rw)
 
 		for {
@@ -84,6 +83,7 @@ func newChan(t reflect.Type, buffer int, rw io.ReadWriteCloser) (c *Chan) {
 				return
 			}
 
+			v := reflect.New(t).Elem()
 			if err := decoder.DecodeValue(v); err != nil {
 				c.errormtx.Lock()
 				c.recverror = err
