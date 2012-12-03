@@ -53,3 +53,7 @@ func (c *Chan) Send(v interface{})
     will panic as described in the Go spec for channels.
 
 
+SUBDIRECTORIES
+
+	example
+
